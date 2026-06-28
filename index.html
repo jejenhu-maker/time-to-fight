@@ -301,12 +301,13 @@ Events.on(engine, 'collisionStart', ev=>{
   if(mode!=='fight') return;
   for(const pair of ev.pairs){
     const a=pair.bodyA.label||'', b=pair.bodyB.label||'';
-    // player weapon hits enemy torso/head
+    // PLAYER's weapon hits ENEMY body -> only the ENEMY takes damage
     if((a==='p_weapon'&&(b==='e_torso'||b==='e_head')) || (b==='p_weapon'&&(a==='e_torso'||a==='e_head'))){
-      if(enemy.hitCd<=0){ const spd=weaponSpeed(player.weapon); if(spd>2.0) damage(enemy, Math.min(18, 4+spd*1.4)); hitSpark(enemy.torso.position); }
+      if(enemy.hitCd<=0){ const spd=weaponSpeed(player.weapon); if(spd>3.0){ damage(enemy, Math.min(18, 4+spd*1.4)); hitSpark(enemy.torso.position); } }
     }
+    // ENEMY's weapon hits PLAYER body -> only the PLAYER takes damage (must be a real swing)
     if((a==='e_weapon'&&(b==='p_torso'||b==='p_head')) || (b==='e_weapon'&&(a==='p_torso'||a==='p_head'))){
-      if(player.hitCd<=0){ const spd=weaponSpeed(enemy.weapon); if(spd>1.5) damage(player, Math.min(14, 3+spd*1.1)); hitSpark(player.torso.position); }
+      if(player.hitCd<=0){ const spd=weaponSpeed(enemy.weapon); if(spd>3.0){ damage(player, Math.min(14, 3+spd*1.1)); hitSpark(player.torso.position); } }
     }
   }
 });
@@ -361,19 +362,22 @@ function aiStickman(s, target){
   const dx = target.torso.position.x - s.torso.position.x;
   const dist = Math.abs(dx);
   let dir = Math.sign(dx);
-  // approach to a striking range, then keep swinging
-  let moving = false;
-  if(dist > 70){ // walk toward player
+  s.facing = dir;
+  if(s.swingCd===undefined) s.swingCd = 1.0 + Math.random();
+  s.swingCd -= 1/60;
+
+  if(dist > 80){ // walk toward player
     Body.applyForce(s.torso, s.torso.position, { x: dir*0.0016*s.torso.mass*60, y:0 });
     if(Math.abs(s.torso.velocity.x) > 5) Body.setVelocity(s.torso, { x: Math.sign(s.torso.velocity.x)*5, y: s.torso.velocity.y });
-    s.facing = dir; moving = true;
   } else {
-    s.facing = dir; moving = true; // in range: keep swinging
+    // in range: swing in bursts (not a constant damage aura)
+    if(s.swingCd <= 0){ s.swinging = 0.5; s.swingCd = 1.1 + Math.random()*0.8; }
   }
-  if(moving){
-    s.swingPhase += 0.42;
-    Body.setAngularVelocity(s.weapon, Math.sin(s.swingPhase)*5.2*s.facing);
-    Body.applyForce(s.weapon, s.weapon.position, { x: s.facing*0.0005, y: Math.sin(s.swingPhase)*0.0007 });
+  if(s.swinging > 0){
+    s.swinging -= 1/60;
+    s.swingPhase += 0.5;
+    Body.setAngularVelocity(s.weapon, Math.sin(s.swingPhase)*6*s.facing);
+    Body.applyForce(s.weapon, s.weapon.position, { x: s.facing*0.0006, y: Math.sin(s.swingPhase)*0.0008 });
   }
 }
 
