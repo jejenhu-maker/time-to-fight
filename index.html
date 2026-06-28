@@ -132,7 +132,7 @@ function makeStickman(x, y, opts){
   // weapon (a bat): attached to a swing arm pivot near shoulder
   const wlen = (opts.weaponLen||54)*scale;
   const weapon = Bodies.rectangle(x+22*scale, y-18*scale, wlen, 9*scale, {
-    collisionFilter:{ group, category:wcat, mask: CAT.PLAYER|CAT.ENEMY|CAT.PROP },
+    collisionFilter:{ group, category:wcat, mask: CAT.PLAYER|CAT.ENEMY|CAT.PROP|CAT.WEAPON_P|CAT.WEAPON_E },
     label:(isPlayer?'p':'e')+'_weapon', render:{ fillStyle: opts.weaponColor||'#d9a066' },
     density:0.0010, friction:0.3, frictionAir:0.02 });
 
@@ -309,13 +309,19 @@ Events.on(engine, 'collisionStart', ev=>{
     if((a==='e_weapon'&&(b==='p_torso'||b==='p_head')) || (b==='e_weapon'&&(a==='p_torso'||a==='p_head'))){
       if(player.hitCd<=0){ const spd=weaponSpeed(enemy.weapon); if(spd>3.0){ damage(player, Math.min(14, 3+spd*1.1)); hitSpark(player.torso.position); } }
     }
+    // BAT vs BAT -> they clash and block, NO HP loss for anyone
+    if((a==='p_weapon'&&b==='e_weapon') || (a==='e_weapon'&&b==='p_weapon')){
+      const mid = { x:(pair.bodyA.position.x+pair.bodyB.position.x)/2, y:(pair.bodyA.position.y+pair.bodyB.position.y)/2 };
+      clashSpark(mid);
+    }
   }
 });
 function weaponSpeed(w){ return Math.hypot(w.velocity.x, w.velocity.y); }
 
 // ---------- hit spark ----------
 const sparks=[];
-function hitSpark(pos){ sparks.push({ x:pos.x, y:pos.y, life:0.25 }); }
+function hitSpark(pos){ sparks.push({ x:pos.x, y:pos.y, life:0.25, clash:false }); }
+function clashSpark(pos){ sparks.push({ x:pos.x, y:pos.y, life:0.2, clash:true }); }
 
 // ---------- main update ----------
 Events.on(engine, 'beforeUpdate', ()=>{
@@ -398,8 +404,11 @@ Events.on(render, 'afterRender', ()=>{
   // sparks
   for(let i=sparks.length-1;i>=0;i--){
     const sp=sparks[i]; sp.life-=1/60;
-    ctx.beginPath(); ctx.arc(sp.x, sp.y, 18*(0.25-sp.life)/0.25+4, 0, Math.PI*2);
-    ctx.fillStyle=`rgba(255,220,120,${Math.max(0,sp.life/0.25)})`; ctx.fill();
+    const dur = sp.clash?0.2:0.25;
+    const a = Math.max(0, sp.life/dur);
+    ctx.beginPath(); ctx.arc(sp.x, sp.y, 18*(dur-sp.life)/dur+4, 0, Math.PI*2);
+    ctx.fillStyle = sp.clash ? `rgba(180,230,255,${a})` : `rgba(255,220,120,${a})`; ctx.fill();
+    if(sp.clash){ ctx.strokeStyle=`rgba(255,255,255,${a})`; ctx.lineWidth=2; ctx.stroke(); }
     if(sp.life<=0) sparks.splice(i,1);
   }
 });
